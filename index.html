@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fronteira · SPCRED</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #0F172A; --card: #1E293B; --border: #334155; --text: #E2E8F0;
+    --muted: #64748B; --subtle: #475569; --accent: #60A5FA;
+    --purple: #8B5CF6; --green: #10B981; --yellow: #F59E0B;
+    --red: #E74C3C; --red-bright: #EF4444; --blue: #3498DB;
+    --green-bright: #2ECC71; --font-mono: 'JetBrains Mono', monospace;
+    --font-display: 'Space Grotesk', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-mono); min-height: 100vh; }
+  .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; transition: transform 0.15s, box-shadow 0.15s; }
+  .card:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+
+  input, select, textarea {
+    font-family: var(--font-mono); font-size: 14px; padding: 10px 12px;
+    border: 1.5px solid var(--border); border-radius: 8px; background: var(--card);
+    color: var(--text); width: 100%; outline: none; transition: border-color 0.2s;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+
+  .btn-primary {
+    padding: 10px 20px; border: none; border-radius: 8px; background: #3B82F6;
+    color: white; cursor: pointer; font-family: var(--font-mono); font-size: 13px;
+    font-weight: 600; transition: background 0.2s;
+  }
+  .btn-primary:hover { background: #2563EB; }
+  .btn-primary:disabled { background: #475569; cursor: not-allowed; }
+  .btn-secondary {
+    padding: 10px 20px; border: 1.5px solid var(--subtle); border-radius: 8px;
+    background: transparent; color: #94A3B8; cursor: pointer;
+    font-family: var(--font-mono); font-size: 13px; font-weight: 500; transition: all 0.2s;
+  }
+  .btn-secondary:hover { border-color: var(--muted); color: var(--text); }
+  .btn-danger {
+    padding: 4px 10px; border: none; border-radius: 6px; background: transparent;
+    color: var(--muted); cursor: pointer; font-size: 12px; font-family: var(--font-mono); transition: all 0.15s;
+  }
+  .btn-danger:hover { color: var(--red-bright); background: rgba(239,68,68,0.1); }
+  .page-btn {
+    padding: 10px 20px; border: 1.5px solid var(--border); border-radius: 10px;
+    background: transparent; color: var(--muted); cursor: pointer;
+    font-family: var(--font-mono); font-size: 13px; font-weight: 600;
+    transition: all 0.2s; letter-spacing: 0.3px;
+  }
+  .page-btn.active { background: var(--card); color: var(--accent); border-color: var(--accent); }
+  .page-btn:hover:not(.active) { border-color: var(--subtle); color: #94A3B8; }
+  .tab-btn {
+    padding: 8px 16px; border: none; background: transparent; color: var(--muted);
+    cursor: pointer; font-family: var(--font-mono); font-size: 13px; font-weight: 500;
+    border-bottom: 2px solid transparent; transition: all 0.2s;
+  }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-btn:hover:not(.active) { color: #94A3B8; }
+
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; letter-spacing: 0.3px; }
+
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px;
+  }
+  .modal { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 28px; width: 100%; max-width: 440px; }
+  .hidden { display: none !important; }
+
+  .row-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; border-bottom: 1px solid var(--card); transition: background 0.15s;
+  }
+  .row-item:hover { background: rgba(96,165,250,0.04); }
+  .row-item:last-child { border-bottom: none; }
+
+  .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .stat-label { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .stat-value { font-family: var(--font-display); font-size: 24px; font-weight: 700; letter-spacing: -0.5px; }
+  .stat-sub { font-size: 10px; color: var(--subtle); margin-top: 6px; line-height: 1.4; }
+
+  .param-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
+  .param-label { font-size: 10px; color: var(--muted); font-weight: 600; display: block; margin-bottom: 5px; }
+  .param-input { font-size: 15px; font-weight: 700; font-family: var(--font-display); }
+
+  .sim-table { width: 100%; border-collapse: collapse; font-size: 12px; font-family: var(--font-mono); }
+  .sim-table th {
+    padding: 10px 12px; text-align: right; color: var(--muted); font-weight: 600;
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap;
+    border-bottom: 1px solid var(--border);
+  }
+  .sim-table td { padding: 9px 12px; text-align: right; font-family: var(--font-display); }
+
+  .chart-container { display: flex; align-items: flex-end; gap: 2px; height: 120px; padding: 0 4px; }
+  .chart-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .chart-bar-label { font-size: 9px; color: #94A3B8; font-weight: 600; }
+  .chart-bar {
+    width: 100%; border-radius: 4px 4px 0 0; min-height: 4px;
+    background: linear-gradient(180deg, #8B5CF6, #6366F1);
+  }
+  .chart-day-label { font-size: 8px; color: var(--subtle); }
+
+  /* Connection status */
+  .conn-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .conn-online { background: #10B981; box-shadow: 0 0 8px rgba(16,185,129,0.5); }
+  .conn-offline { background: #EF4444; }
+  .conn-loading { background: #F59E0B; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  .loading-overlay {
+    position: fixed; inset: 0; background: rgba(15,23,42,0.8); backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center; z-index: 200;
+    color: var(--muted); font-size: 13px;
+  }
+
+  @media (max-width: 600px) {
+    .stat-grid { grid-template-columns: 1fr !important; }
+    .row-item { flex-direction: column; align-items: flex-start; gap: 8px; }
+  }
+</style>
+</head>
+<body>
+<div class="container" id="app">
+
+  <!-- Header -->
+  <div style="margin-bottom:24px;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">
+    <div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <div style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#3B82F6,#8B5CF6);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:white">F</div>
+        <h1 style="font-family:var(--font-display);font-size:22px;font-weight:700;color:#F1F5F9;letter-spacing:-0.5px">Fronteira · SPCRED</h1>
+      </div>
+      <p style="color:var(--muted);font-size:12px;margin:6px 0 0 46px">DIB Crédito → SPCRED · Controle de mútuos e quitações</p>
+    </div>
+    <div id="conn-status" style="font-size:11px;color:var(--muted);display:flex;align-items:center;padding-top:8px">
+      <span class="conn-dot conn-loading"></span>Conectando...
+    </div>
+  </div>
+
+  <!-- Page nav -->
+  <div style="display:flex;gap:8px;margin-bottom:24px">
+    <button class="page-btn active" onclick="switchPage('controle')" id="page-btn-controle">Controle</button>
+    <button class="page-btn" onclick="switchPage('previsao')" id="page-btn-previsao">Previsão</button>
+  </div>
+
+  <!-- ═══ CONTROLE PAGE ═══ -->
+  <div id="page-controle">
+    <div class="stat-grid" style="margin-bottom:24px" id="stats-cards"></div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+      <div style="display:flex;gap:0;border-bottom:1px solid var(--border)" id="tabs-bar"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-primary" onclick="openModal('mov')">+ Movimentação</button>
+        <button class="btn-secondary" onclick="openModal('mutuo')">+ Mútuo</button>
+      </div>
+    </div>
+
+    <div id="tab-content"></div>
+  </div>
+
+  <!-- ═══ PREVISÃO PAGE ═══ -->
+  <div id="page-previsao" class="hidden">
+    <div class="card" style="margin-bottom:16px">
+      <div class="stat-label">Parâmetros da Simulação</div>
+      <div class="param-grid">
+        <div><label class="param-label">Ticket Médio (R$)</label><input type="number" class="param-input" id="p-ticket" value="20000" step="1000" onchange="renderPrevisao()"></div>
+        <div><label class="param-label">Dias Úteis/Mês</label><input type="number" class="param-input" id="p-dias" value="22" step="1" onchange="renderPrevisao()"></div>
+        <div><label class="param-label">Quitações Dia 1</label><input type="number" class="param-input" id="p-ini" value="3" step="1" onchange="renderPrevisao()"></div>
+        <div><label class="param-label">Quitações Dia Final</label><input type="number" class="param-input" id="p-fin" value="20" step="1" onchange="renderPrevisao()"></div>
+        <div><label class="param-label">Dias p/ Retorno</label><input type="number" class="param-input" id="p-ret" value="3" step="1" onchange="renderPrevisao()"></div>
+      </div>
+      <p style="margin-top:14px;font-size:10px;color:var(--subtle)">Os parâmetros de Previsão ficam salvos apenas neste navegador — não são compartilhados.</p>
+    </div>
+    <div id="previsao-stats" class="stat-grid" style="margin-bottom:16px"></div>
+    <div id="previsao-chart" class="card" style="margin-bottom:16px"></div>
+    <div id="previsao-table" class="card" style="padding:0;overflow:hidden"></div>
+  </div>
+
+</div>
+
+<!-- Modal -->
+<div id="modal-overlay" class="modal-overlay hidden" onclick="closeModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3 id="modal-title" style="font-family:var(--font-display);font-size:18px;font-weight:700;color:#F1F5F9;margin:0 0 20px"></h3>
+    <div id="modal-tipo-wrap" style="margin-bottom:14px">
+      <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:6px">Tipo</label>
+      <select id="modal-tipo">
+        <option value="uso">↗ Uso (Quitação de contrato)</option>
+        <option value="retorno_caixa">↩ Retorno ao Caixa (Fundo liberou)</option>
+        <option value="devolucao">↓ Devolução p/ Fronteira</option>
+      </select>
+    </div>
+    <div style="margin-bottom:14px">
+      <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:6px">Valor (R$)</label>
+      <input type="number" step="0.01" placeholder="0,00" id="modal-valor">
+    </div>
+    <div style="margin-bottom:14px">
+      <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:6px">Data</label>
+      <input type="date" id="modal-data">
+    </div>
+    <div style="margin-bottom:20px">
+      <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:6px">Descrição</label>
+      <input type="text" placeholder="Ex: Quitação cliente João" id="modal-desc">
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn-primary" id="modal-submit" onclick="submitModal()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div id="loading-overlay" class="loading-overlay">Carregando dados...</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// SUPABASE CONFIG
+// ═══════════════════════════════════════════════════
+const SUPABASE_URL = 'https://lpjborclwddbkwupohjs.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxwamJvcmNsd2RkYmt3dXBvaGpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0MzQ3MDUsImV4cCI6MjA5MjAxMDcwNX0.ZkcRuNzYhUv34eOCkvNodaBGGHQmywqYqzTFYlSI0BY';
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ═══════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════
+const TIPO_CONFIG = {
+  uso: { label: 'Uso (Quitação)', color: '#E74C3C', icon: '↗', bg: '#FDF2F2' },
+  retorno_caixa: { label: 'Retorno ao Caixa', color: '#2ECC71', icon: '↩', bg: '#F0FDF4' },
+  devolucao: { label: 'Devolução p/ Fronteira', color: '#3498DB', icon: '↓', bg: '#EFF6FF' },
+};
+
+let data = { mutuos: [], movimentacoes: [] };
+let currentPage = 'controle', currentTab = 'resumo', modalType = null;
+
+// ═══════════════════════════════════════════════════
+// CONNECTION STATUS
+// ═══════════════════════════════════════════════════
+function setConnStatus(state, msg) {
+  const el = document.getElementById('conn-status');
+  if (state === 'online') {
+    el.innerHTML = `<span class="conn-dot conn-online"></span>Conectado · sincronizando em tempo real`;
+  } else if (state === 'loading') {
+    el.innerHTML = `<span class="conn-dot conn-loading"></span>${msg || 'Sincronizando...'}`;
+  } else {
+    el.innerHTML = `<span class="conn-dot conn-offline"></span>${msg || 'Desconectado'}`;
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// DATABASE OPERATIONS
+// ═══════════════════════════════════════════════════
+async function fetchAll() {
+  try {
+    const [mutuosRes, movsRes] = await Promise.all([
+      sb.from('mutuos').select('*').order('data', { ascending: true }),
+      sb.from('movimentacoes').select('*').order('data', { ascending: true }),
+    ]);
+    if (mutuosRes.error) throw mutuosRes.error;
+    if (movsRes.error) throw movsRes.error;
+    data.mutuos = mutuosRes.data || [];
+    data.movimentacoes = movsRes.data || [];
+    setConnStatus('online');
+  } catch (e) {
+    console.error('Erro ao carregar:', e);
+    setConnStatus('offline', 'Erro ao conectar · verifique a internet');
+    alert('Erro ao conectar no banco de dados: ' + e.message);
+  }
+}
+
+async function insertMutuo(obj) {
+  setConnStatus('loading', 'Salvando...');
+  const { data: res, error } = await sb.from('mutuos').insert(obj).select().single();
+  if (error) { alert('Erro ao salvar: ' + error.message); setConnStatus('online'); return; }
+  data.mutuos.push(res);
+  setConnStatus('online');
+  renderControle();
+}
+
+async function insertMov(obj) {
+  setConnStatus('loading', 'Salvando...');
+  const { data: res, error } = await sb.from('movimentacoes').insert(obj).select().single();
+  if (error) { alert('Erro ao salvar: ' + error.message); setConnStatus('online'); return; }
+  data.movimentacoes.push(res);
+  setConnStatus('online');
+  renderControle();
+}
+
+async function removeMutuo(id) {
+  if (!confirm('Tem certeza que quer deletar este mútuo?')) return;
+  setConnStatus('loading', 'Deletando...');
+  const { error } = await sb.from('mutuos').delete().eq('id', id);
+  if (error) { alert('Erro: ' + error.message); setConnStatus('online'); return; }
+  data.mutuos = data.mutuos.filter(m => m.id !== id);
+  setConnStatus('online');
+  renderControle();
+}
+
+async function removeMov(id) {
+  if (!confirm('Tem certeza que quer deletar esta movimentação?')) return;
+  setConnStatus('loading', 'Deletando...');
+  const { error } = await sb.from('movimentacoes').delete().eq('id', id);
+  if (error) { alert('Erro: ' + error.message); setConnStatus('online'); return; }
+  data.movimentacoes = data.movimentacoes.filter(m => m.id !== id);
+  setConnStatus('online');
+  renderControle();
+}
+
+// ═══════════════════════════════════════════════════
+// REALTIME SUBSCRIPTIONS
+// ═══════════════════════════════════════════════════
+function subscribeRealtime() {
+  sb.channel('mutuos-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'mutuos' }, async () => {
+      await fetchAll();
+      if (currentPage === 'controle') renderControle();
+    })
+    .subscribe();
+
+  sb.channel('movimentacoes-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'movimentacoes' }, async () => {
+      await fetchAll();
+      if (currentPage === 'controle') renderControle();
+    })
+    .subscribe();
+}
+
+// ═══════════════════════════════════════════════════
+// FORMATTING HELPERS
+// ═══════════════════════════════════════════════════
+function formatBRL(v) { return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
+function formatDate(d) { const [y,m,day] = d.split('-'); return `${day}/${m}/${y}`; }
+function today() { return new Date().toISOString().slice(0,10); }
+
+// ═══════════════════════════════════════════════════
+// CALCULATIONS
+// ═══════════════════════════════════════════════════
+function calcStats() {
+  const totalAlocado = data.mutuos.reduce((s,m) => s + Number(m.valor), 0);
+  const totalUso = data.movimentacoes.filter(m => m.tipo==='uso').reduce((s,m) => s + Number(m.valor), 0);
+  const totalRetornoCaixa = data.movimentacoes.filter(m => m.tipo==='retorno_caixa').reduce((s,m) => s + Number(m.valor), 0);
+  const totalDevolvido = data.movimentacoes.filter(m => m.tipo==='devolucao').reduce((s,m) => s + Number(m.valor), 0);
+  const usoEmAberto = totalUso - totalRetornoCaixa;
+  const caixaSPCRED = totalAlocado - totalDevolvido - usoEmAberto;
+  const capitalComSPCRED = totalAlocado - totalDevolvido;
+  return { totalAlocado, totalUso, totalRetornoCaixa, totalDevolvido, usoEmAberto, caixaSPCRED, capitalComSPCRED };
+}
+
+// ═══════════════════════════════════════════════════
+// PAGE SWITCHING
+// ═══════════════════════════════════════════════════
+function switchPage(p) {
+  currentPage = p;
+  document.getElementById('page-controle').classList.toggle('hidden', p !== 'controle');
+  document.getElementById('page-previsao').classList.toggle('hidden', p !== 'previsao');
+  document.getElementById('page-btn-controle').classList.toggle('active', p === 'controle');
+  document.getElementById('page-btn-previsao').classList.toggle('active', p === 'previsao');
+  if (p === 'previsao') renderPrevisao();
+}
+
+// ═══════════════════════════════════════════════════
+// CONTROLE RENDER
+// ═══════════════════════════════════════════════════
+function renderControle() {
+  const s = calcStats();
+
+  const cards = [
+    { label: 'Capital com SPCRED', value: s.capitalComSPCRED, color: '#8B5CF6', sub: `${formatBRL(s.totalAlocado)} alocado − ${formatBRL(s.totalDevolvido)} devolvido` },
+    { label: 'Caixa Disponível SPCRED', value: s.caixaSPCRED, color: '#10B981', sub: 'Dinheiro parado no caixa deles' },
+    { label: 'Uso em Aberto', value: s.usoEmAberto, color: '#F59E0B', sub: 'Aguardando retorno do fundo' },
+  ];
+  document.getElementById('stats-cards').innerHTML = cards.map(c => `
+    <div class="card" style="border-top:3px solid ${c.color}">
+      <div class="stat-label">${c.label}</div>
+      <div class="stat-value" style="color:${c.color}">${formatBRL(c.value||0)}</div>
+      <div class="stat-sub">${c.sub}</div>
+    </div>
+  `).join('');
+
+  const tabs = [{key:'resumo',label:'Resumo'},{key:'mutuos',label:'Mútuos'},{key:'movimentacoes',label:'Movimentações'}];
+  document.getElementById('tabs-bar').innerHTML = tabs.map(t =>
+    `<button class="tab-btn ${currentTab===t.key?'active':''}" onclick="switchTab('${t.key}')">${t.label}</button>`
+  ).join('');
+
+  renderTab(s);
+}
+
+function switchTab(t) { currentTab = t; renderControle(); }
+
+function renderTab(s) {
+  const el = document.getElementById('tab-content');
+  if (currentTab === 'resumo') {
+    const rows = [
+      { label: 'Total Alocado (Mútuos)', value: s.totalAlocado, color: '#8B5CF6' },
+      { label: 'Total Usado (Quitações)', value: s.totalUso, color: '#E74C3C' },
+      { label: 'Total Retorno ao Caixa', value: s.totalRetornoCaixa, color: '#2ECC71' },
+      { label: 'Total Devolvido p/ Fronteira', value: s.totalDevolvido, color: '#3498DB' },
+      { label: 'Uso em Aberto (aguardando fundo)', value: s.usoEmAberto, color: '#F59E0B' },
+      { label: 'Caixa Disponível SPCRED', value: s.caixaSPCRED, color: '#10B981' },
+    ];
+    el.innerHTML = `<div class="card">
+      <div class="stat-label">Resumo Financeiro</div>
+      ${rows.map((r,i) => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;${i<5?'border-bottom:1px solid #2D3748':''}">
+          <span style="font-size:13px;color:#94A3B8">${r.label}</span>
+          <span style="font-size:15px;font-weight:700;color:${r.color};font-family:var(--font-display)">${formatBRL(r.value||0)}</span>
+        </div>
+      `).join('')}
+    </div>`;
+  } else if (currentTab === 'mutuos') {
+    const mutuosSorted = data.mutuos.slice().sort((a,b) => new Date(b.data) - new Date(a.data));
+    el.innerHTML = `<div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:13px;font-weight:600;color:#CBD5E1">Mútuos realizados (${data.mutuos.length})</span>
+        <span style="font-size:13px;font-weight:700;color:#8B5CF6;font-family:var(--font-display)">Total: ${formatBRL(s.totalAlocado||0)}</span>
+      </div>
+      ${mutuosSorted.map(m => `
+        <div class="row-item">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:36px;height:36px;border-radius:8px;background:rgba(139,92,246,0.15);display:flex;align-items:center;justify-content:center;font-size:16px">💸</div>
+            <div>
+              <div style="font-size:13px;font-weight:600;color:var(--text)">${m.descricao}</div>
+              <div style="font-size:11px;color:var(--muted)">${formatDate(m.data)}</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="font-size:15px;font-weight:700;color:#8B5CF6;font-family:var(--font-display)">${formatBRL(m.valor)}</span>
+            <button class="btn-danger" onclick="removeMutuo(${m.id})">✕</button>
+          </div>
+        </div>
+      `).join('')}
+    </div>`;
+  } else {
+    const movs = data.movimentacoes.slice().sort((a,b) => new Date(b.data) - new Date(a.data) || b.id - a.id);
+    el.innerHTML = `<div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border)">
+        <span style="font-size:13px;font-weight:600;color:#CBD5E1">Movimentações (${data.movimentacoes.length})</span>
+      </div>
+      ${movs.map(m => {
+        const cfg = TIPO_CONFIG[m.tipo];
+        const prefix = m.tipo==='devolucao'?'−':m.tipo==='retorno_caixa'?'+':'';
+        return `<div class="row-item">
+          <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0">
+            <div style="width:36px;height:36px;border-radius:8px;background:${cfg.bg};display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">${cfg.icon}</div>
+            <div style="min-width:0">
+              <div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.descricao}</div>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:3px">
+                <span class="badge" style="background:${cfg.bg};color:${cfg.color}">${cfg.label}</span>
+                <span style="font-size:11px;color:var(--muted)">${formatDate(m.data)}</span>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;flex-shrink:0">
+            <span style="font-size:15px;font-weight:700;color:${cfg.color};font-family:var(--font-display)">${prefix}${formatBRL(m.valor)}</span>
+            <button class="btn-danger" onclick="removeMov(${m.id})">✕</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// MODAL
+// ═══════════════════════════════════════════════════
+function openModal(type) {
+  modalType = type;
+  document.getElementById('modal-overlay').classList.remove('hidden');
+  document.getElementById('modal-title').textContent = type === 'mutuo' ? 'Novo Mútuo' : 'Nova Movimentação';
+  document.getElementById('modal-tipo-wrap').classList.toggle('hidden', type === 'mutuo');
+  document.getElementById('modal-valor').value = '';
+  document.getElementById('modal-data').value = today();
+  document.getElementById('modal-desc').value = '';
+}
+function closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); }
+
+async function submitModal() {
+  const valor = parseFloat(document.getElementById('modal-valor').value);
+  if (!valor) { alert('Por favor, informe um valor válido.'); return; }
+  const dt = document.getElementById('modal-data').value;
+  const desc = document.getElementById('modal-desc').value;
+  const btn = document.getElementById('modal-submit');
+  btn.disabled = true; btn.textContent = 'Salvando...';
+
+  if (modalType === 'mutuo') {
+    await insertMutuo({ valor, data: dt, descricao: desc || `Mútuo #${data.mutuos.length+1}` });
+  } else {
+    const tipo = document.getElementById('modal-tipo').value;
+    await insertMov({ tipo, valor, data: dt, descricao: desc || TIPO_CONFIG[tipo].label });
+  }
+
+  btn.disabled = false; btn.textContent = 'Salvar';
+  closeModal();
+}
+
+// ═══════════════════════════════════════════════════
+// PREVISÃO (localStorage only, not shared)
+// ═══════════════════════════════════════════════════
+const PREV_KEY = 'fronteira-previsao-params';
+function loadPrevParams() {
+  try {
+    const raw = localStorage.getItem(PREV_KEY);
+    if (!raw) return;
+    const p = JSON.parse(raw);
+    if (p.ticket) document.getElementById('p-ticket').value = p.ticket;
+    if (p.dias) document.getElementById('p-dias').value = p.dias;
+    if (p.ini != null) document.getElementById('p-ini').value = p.ini;
+    if (p.fin) document.getElementById('p-fin').value = p.fin;
+    if (p.ret) document.getElementById('p-ret').value = p.ret;
+  } catch {}
+}
+function savePrevParams() {
+  const p = {
+    ticket: Number(document.getElementById('p-ticket').value),
+    dias: Number(document.getElementById('p-dias').value),
+    ini: Number(document.getElementById('p-ini').value),
+    fin: Number(document.getElementById('p-fin').value),
+    ret: Number(document.getElementById('p-ret').value),
+  };
+  localStorage.setItem(PREV_KEY, JSON.stringify(p));
+}
+
+function buildSimulation(ticketMedio, diasUteis, quitInicial, quitFinal, diasRetorno) {
+  const schedule = [];
+  for (let d = 0; d < diasUteis; d++) {
+    const t = d / (diasUteis - 1);
+    const eased = t * t * t;
+    schedule.push(Math.round(quitInicial + (quitFinal - quitInicial) * eased));
+  }
+  const pendingReturns = new Array(diasUteis + diasRetorno + 5).fill(0);
+  const days = []; let caixa = 0, aporteAcumulado = 0, peakCapital = 0;
+  for (let d = 0; d < diasUteis; d++) {
+    const retorno = pendingReturns[d] || 0;
+    caixa += retorno;
+    const quitsDia = schedule[d], custoDia = quitsDia * ticketMedio;
+    let aporteDia = 0;
+    if (custoDia > caixa) { aporteDia = custoDia - caixa; caixa = 0; }
+    else { caixa -= custoDia; }
+    aporteAcumulado += aporteDia;
+    if (d + diasRetorno < pendingReturns.length) pendingReturns[d + diasRetorno] += custoDia;
+    if (aporteAcumulado > peakCapital) peakCapital = aporteAcumulado;
+    days.push({ dia: d+1, quitacoes: quitsDia, custoDia, retorno, aporteDia, caixaFimDia: caixa, aporteAcumulado });
+  }
+  const totalQuitacoes = schedule.reduce((a,b) => a+b, 0);
+  return { days, schedule, peakCapital, totalQuitacoes, volumeTotal: totalQuitacoes * ticketMedio };
+}
+
+function renderPrevisao() {
+  savePrevParams();
+  const ticket = Number(document.getElementById('p-ticket').value) || 20000;
+  const dias = Number(document.getElementById('p-dias').value) || 22;
+  const ini = Number(document.getElementById('p-ini').value) || 3;
+  const fin = Number(document.getElementById('p-fin').value) || 20;
+  const ret = Number(document.getElementById('p-ret').value) || 3;
+  const sim = buildSimulation(ticket, dias, ini, fin, ret);
+  const maxQ = Math.max(...sim.schedule);
+
+  const stats = [
+    { label: 'Capital Necessário (Pico)', value: formatBRL(sim.peakCapital), color: '#E74C3C', sub: 'Máximo de dinheiro que precisa estar alocado' },
+    { label: 'Total de Quitações', value: sim.totalQuitacoes.toLocaleString('pt-BR'), color: '#8B5CF6', sub: `${dias} dias úteis · ${ini}→${fin}/dia` },
+    { label: 'Volume Total Movimentado', value: formatBRL(sim.volumeTotal), color: '#10B981', sub: 'Valor total das quitações no período' },
+  ];
+  document.getElementById('previsao-stats').innerHTML = stats.map(s => `
+    <div class="card" style="border-top:3px solid ${s.color}">
+      <div class="stat-label">${s.label}</div>
+      <div style="font-family:var(--font-display);font-size:22px;font-weight:700;color:${s.color};letter-spacing:-0.5px">${s.value}</div>
+      <div class="stat-sub">${s.sub}</div>
+    </div>
+  `).join('');
+
+  document.getElementById('previsao-chart').innerHTML = `
+    <div class="stat-label">Ramp-Up · Quitações por Dia</div>
+    <div class="chart-container">
+      ${sim.days.map(d => `
+        <div class="chart-bar-wrap">
+          <span class="chart-bar-label">${d.quitacoes}</span>
+          <div class="chart-bar" style="height:${(d.quitacoes/maxQ)*90}px" title="Dia ${d.dia}: ${d.quitacoes} quitações"></div>
+          <span class="chart-day-label">${d.dia}</span>
+        </div>
+      `).join('')}
+    </div>
+  `;
+
+  document.getElementById('previsao-table').innerHTML = `
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border)">
+      <span style="font-size:13px;font-weight:600;color:#CBD5E1">Projeção Dia a Dia</span>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="sim-table">
+        <thead><tr>
+          <th>Dia</th><th>Quits</th><th>Custo Dia</th><th>Retorno</th><th>Aporte Novo</th><th>Caixa Fim</th><th>Acumulado</th>
+        </tr></thead>
+        <tbody>
+          ${sim.days.map(d => `
+            <tr style="border-bottom:1px solid var(--card);${d.aporteDia>0?'background:rgba(239,68,68,0.03)':''}">
+              <td style="color:#94A3B8;font-weight:600;font-family:var(--font-mono)">D${d.dia}</td>
+              <td style="color:#8B5CF6;font-weight:700">${d.quitacoes}</td>
+              <td style="color:var(--text)">${formatBRL(d.custoDia)}</td>
+              <td style="color:${d.retorno>0?'#10B981':'var(--border)'}">${d.retorno>0?formatBRL(d.retorno):'—'}</td>
+              <td style="color:${d.aporteDia>0?'#EF4444':'var(--border)'};font-weight:${d.aporteDia>0?700:400}">${d.aporteDia>0?formatBRL(d.aporteDia):'—'}</td>
+              <td style="color:#CBD5E1">${formatBRL(d.caixaFimDia)}</td>
+              <td style="color:#F59E0B;font-weight:700">${formatBRL(d.aporteAcumulado)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+// ═══════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════
+(async () => {
+  loadPrevParams();
+  await fetchAll();
+  document.getElementById('loading-overlay').style.display = 'none';
+  renderControle();
+  subscribeRealtime();
+})();
+</script>
+</body>
+</html>
